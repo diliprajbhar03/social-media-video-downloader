@@ -22,11 +22,13 @@ The application follows a traditional client-server architecture with a Flask ba
 ## Key Components
 
 ### Backend (Flask)
-- **Main Application** (`app.py`): Contains all route handlers and business logic
+- **Main Application** (`app.py`): Contains all route handlers and business logic with database integration
+- **Database Models** (`models.py`): SQLAlchemy models for tracking downloads, statistics, and caching
 - **Entry Point** (`main.py`): Simple server startup script
 - **Video Processing**: Uses PyTube library for YouTube URL validation and video stream extraction
 - **Progress Tracking**: Global dictionary to store download progress for real-time updates
 - **File Handling**: Temporary file management for downloads
+- **Data Persistence**: PostgreSQL database for download history, video caching, and statistics
 
 ### Frontend
 - **Base Template** (`templates/base.html`): Common layout with Bootstrap dark theme
@@ -40,6 +42,10 @@ The application follows a traditional client-server architecture with a Flask ba
 - Real-time download progress tracking
 - Responsive design with dark theme
 - Error handling and user feedback
+- Database integration for download tracking and statistics
+- Video information caching for improved performance
+- Download history and analytics
+- Popular videos tracking
 
 ## Data Flow
 
