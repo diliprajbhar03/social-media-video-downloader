@@ -3,7 +3,7 @@ import logging
 from flask import Flask, render_template, request, jsonify, send_file, flash, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
-from pytube import YouTube
+from pytubefix import YouTube
 import tempfile
 import threading
 import time
@@ -96,8 +96,12 @@ def get_video_info(url):
             logging.info(f"Retrieved cached video info for: {cached_video.title}")
             return video_info, None
         
-        # Fetch fresh data from YouTube
-        yt = YouTube(url)
+        # Fetch fresh data from YouTube with improved error handling
+        try:
+            yt = YouTube(url, use_oauth=False, allow_oauth_cache=True)
+        except Exception as yt_error:
+            logging.error(f"PyTubeFix error for {url}: {str(yt_error)}")
+            return None, f"Could not access YouTube video: {str(yt_error)}"
         
         # Get available streams
         video_streams = yt.streams.filter(progressive=True, file_extension='mp4').order_by('resolution').desc()
@@ -257,7 +261,15 @@ def download_video():
             try:
                 from models import DownloadHistory, PopularVideo, DownloadStats
                 
-                yt = YouTube(url)
+                # Initialize YouTube object with better error handling
+                try:
+                    yt = YouTube(url, use_oauth=False, allow_oauth_cache=True)
+                except Exception as yt_error:
+                    download_progress[download_id]['status'] = 'error'
+                    download_progress[download_id]['error'] = f'YouTube access error: {str(yt_error)}'
+                    logging.error(f"YouTube initialization error: {str(yt_error)}")
+                    return
+                
                 stream = yt.streams.get_by_itag(itag)
                 
                 if not stream:

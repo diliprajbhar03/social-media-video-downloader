@@ -12,31 +12,46 @@ class YouTubeDownloader {
     
     initializeEventListeners() {
         // Get video info button
-        document.getElementById('get-info-btn').addEventListener('click', () => {
-            this.getVideoInfo();
-        });
+        const getInfoBtn = document.getElementById('get-info-btn');
+        if (getInfoBtn) {
+            getInfoBtn.addEventListener('click', () => {
+                this.getVideoInfo();
+            });
+        }
         
         // Enter key on URL input
-        document.getElementById('youtube-url').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                this.getVideoInfo();
-            }
-        });
+        const urlInput = document.getElementById('youtube-url');
+        if (urlInput) {
+            urlInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.getVideoInfo();
+                }
+            });
+        }
         
         // Download button
-        document.getElementById('download-btn').addEventListener('click', () => {
-            this.startDownload();
-        });
+        const downloadBtn = document.getElementById('download-btn');
+        if (downloadBtn) {
+            downloadBtn.addEventListener('click', () => {
+                this.startDownload();
+            });
+        }
         
         // New download button
-        document.getElementById('new-download-btn').addEventListener('click', () => {
-            this.resetInterface();
-        });
+        const newDownloadBtn = document.getElementById('new-download-btn');
+        if (newDownloadBtn) {
+            newDownloadBtn.addEventListener('click', () => {
+                this.resetInterface();
+            });
+        }
         
         // Retry download button
-        document.getElementById('retry-download-btn').addEventListener('click', () => {
-            this.startDownload();
-        });
+        const retryBtn = document.getElementById('retry-download-btn');
+        if (retryBtn) {
+            retryBtn.addEventListener('click', () => {
+                this.startDownload();
+            });
+        }
     }
     
     async getVideoInfo() {
