@@ -103,33 +103,72 @@ def get_video_info(url):
             logging.error(f"PyTubeFix error for {url}: {str(yt_error)}")
             return None, f"Could not access YouTube video: {str(yt_error)}"
         
-        # Get available streams
-        video_streams = yt.streams.filter(progressive=True, file_extension='mp4').order_by('resolution').desc()
-        audio_streams = yt.streams.filter(only_audio=True, file_extension='mp4')
+        # Get available streams with more comprehensive quality options
+        
+        # Get all video streams (both progressive and adaptive)
+        progressive_streams = yt.streams.filter(progressive=True, file_extension='mp4').order_by('resolution').desc()
+        adaptive_video_streams = yt.streams.filter(adaptive=True, only_video=True, file_extension='mp4').order_by('resolution').desc()
+        audio_streams = yt.streams.filter(only_audio=True)
         
         # Prepare quality options
         quality_options = []
-        
-        # Add video qualities
         seen_resolutions = set()
-        for stream in video_streams:
+        
+        # Add progressive video qualities (video + audio combined)
+        for stream in progressive_streams:
             if stream.resolution and stream.resolution not in seen_resolutions:
                 quality_options.append({
                     'itag': stream.itag,
-                    'quality': stream.resolution,
+                    'quality': f"{stream.resolution} (MP4)",
                     'type': 'video',
-                    'filesize': stream.filesize or 0
+                    'filesize': stream.filesize or 0,
+                    'format': 'progressive'
                 })
                 seen_resolutions.add(stream.resolution)
         
-        # Add audio-only option
-        if audio_streams:
+        # Add adaptive video qualities (higher quality, video only - requires audio merge)
+        for stream in adaptive_video_streams:
+            if stream.resolution and stream.resolution not in seen_resolutions:
+                # For adaptive streams, we need to note they're video-only
+                quality_options.append({
+                    'itag': stream.itag,
+                    'quality': f"{stream.resolution} (High Quality)",
+                    'type': 'video_adaptive',
+                    'filesize': stream.filesize or 0,
+                    'format': 'adaptive'
+                })
+                seen_resolutions.add(stream.resolution)
+        
+        # Add audio-only options with different quality levels
+        audio_qualities = []
+        for stream in audio_streams:
+            if stream.abr:  # Audio bitrate
+                audio_qualities.append({
+                    'itag': stream.itag,
+                    'quality': f"Audio ({stream.abr})",
+                    'type': 'audio',
+                    'filesize': stream.filesize or 0,
+                    'format': stream.subtype
+                })
+        
+        # Sort audio by bitrate and add best quality audio
+        if audio_qualities:
+            # Sort by bitrate (extract number from string like "128kbps")
+            audio_qualities.sort(key=lambda x: int(x['quality'].split('(')[1].split('k')[0]) if 'k' in x['quality'] else 0, reverse=True)
+            
+            # Add top 3 audio qualities
+            for audio in audio_qualities[:3]:
+                quality_options.append(audio)
+        
+        # If no audio qualities found, add a basic audio option
+        if not audio_qualities and audio_streams:
             audio_stream = audio_streams.first()
             quality_options.append({
                 'itag': audio_stream.itag,
                 'quality': 'Audio Only',
                 'type': 'audio',
-                'filesize': audio_stream.filesize or 0
+                'filesize': audio_stream.filesize or 0,
+                'format': audio_stream.subtype or 'mp4'
             })
         
         # Cache video information in database
@@ -276,6 +315,12 @@ def download_video():
                     download_progress[download_id]['status'] = 'error'
                     download_progress[download_id]['error'] = 'Selected quality not available'
                     return
+                
+                # Check if this is an adaptive stream (video-only)
+                is_adaptive = hasattr(stream, 'adaptive') and stream.adaptive and hasattr(stream, 'includes_video_track') and stream.includes_video_track and not getattr(stream, 'includes_audio_track', True)
+                
+                # For adaptive streams, we'll download video-only for now
+                # In the future, we can add FFmpeg integration for merging
                 
                 # Create download record
                 video_id = extract_video_id(url)

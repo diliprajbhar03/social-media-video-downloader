@@ -133,15 +133,34 @@ class YouTubeDownloader {
         card.dataset.itag = option.itag;
         card.dataset.quality = option.quality;
         
-        const typeIcon = option.type === 'audio' ? 'headphones' : 'video';
-        const typeBadge = option.type === 'audio' ? 'Audio' : 'Video';
+        // Determine icon and badge based on type
+        let typeIcon, typeBadge, badgeColor;
+        
+        if (option.type === 'audio') {
+            typeIcon = 'headphones';
+            typeBadge = 'Audio';
+            badgeColor = 'bg-info';
+        } else if (option.type === 'video_adaptive') {
+            typeIcon = 'video';
+            typeBadge = 'High Quality';
+            badgeColor = 'bg-warning';
+        } else {
+            typeIcon = 'video';
+            typeBadge = 'Ready to Use';
+            badgeColor = 'bg-success';
+        }
+        
+        // Add additional info for adaptive streams
+        const adaptiveInfo = option.type === 'video_adaptive' ? 
+            '<small class="text-warning d-block mt-1">Video only (no audio)</small>' : '';
         
         card.innerHTML = `
             <div class="card-body text-center">
                 <i data-feather="${typeIcon}" class="mb-2"></i>
                 <h6 class="card-title">${option.quality}</h6>
-                <span class="badge bg-secondary quality-badge">${typeBadge}</span>
+                <span class="badge ${badgeColor} quality-badge">${typeBadge}</span>
                 <div class="text-muted small mt-2">${option.filesize}</div>
+                ${adaptiveInfo}
             </div>
         `;
         
