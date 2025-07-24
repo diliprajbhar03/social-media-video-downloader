@@ -5,8 +5,33 @@
     <!-- Header Section -->
     <div class="row justify-content-center mb-5">
         <div class="col-lg-8 text-center">
+            <div class="mb-4">
+                <i data-feather="play-circle" style="width: 64px; height: 64px; color: #667eea;"></i>
+            </div>
             <h1 class="display-5 fw-bold mb-3">YouTube Video Downloader</h1>
             <p class="lead text-muted">Download YouTube videos in various qualities including audio-only format</p>
+            
+            <!-- Feature highlights -->
+            <div class="row g-3 mt-4">
+                <div class="col-md-4">
+                    <div class="d-flex align-items-center justify-content-center">
+                        <i data-feather="zap" class="me-2" style="color: #f5576c;"></i>
+                        <small class="text-muted">Fast Downloads</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="d-flex align-items-center justify-content-center">
+                        <i data-feather="shield" class="me-2" style="color: #4facfe;"></i>
+                        <small class="text-muted">High Quality</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="d-flex align-items-center justify-content-center">
+                        <i data-feather="smartphone" class="me-2" style="color: #00f2fe;"></i>
+                        <small class="text-muted">Mobile Friendly</small>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -132,7 +157,7 @@
                         Download Progress
                     </h5>
                     
-                    <div class="progress mb-3" style="height: 20px;">
+                    <div class="progress mb-3" style="height: 25px;">
                         <div id="progress-bar" 
                              class="progress-bar progress-bar-striped progress-bar-animated" 
                              role="progressbar" 
@@ -140,7 +165,7 @@
                              aria-valuenow="0" 
                              aria-valuemin="0" 
                              aria-valuemax="100">
-                            0%
+                            <span class="fw-bold">0%</span>
                         </div>
                     </div>
                     

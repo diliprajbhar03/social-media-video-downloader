@@ -7,6 +7,7 @@ This is a Flask-based web application that allows users to download YouTube vide
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
+Visual design preference: Attractive, modern theme with enhanced visual effects.
 
 ## System Architecture
 

@@ -99,9 +99,14 @@ class YouTubeDownloader {
         this.showVideoInfo();
         this.showQualitySelection();
         
-        // Add fade-in animation
-        document.getElementById('video-info').classList.add('fade-in');
-        document.getElementById('quality-selection').classList.add('fade-in');
+        // Add staggered animations
+        setTimeout(() => {
+            document.getElementById('video-info').classList.add('fade-in');
+        }, 100);
+        
+        setTimeout(() => {
+            document.getElementById('quality-selection').classList.add('slide-in-left');
+        }, 300);
     }
     
     createQualityOption(option, index) {
@@ -224,12 +229,13 @@ class YouTubeDownloader {
         const progressBar = document.getElementById('progress-bar');
         progressBar.style.width = `${percentage}%`;
         progressBar.setAttribute('aria-valuenow', percentage);
-        progressBar.textContent = `${percentage}%`;
+        progressBar.innerHTML = `<span class="fw-bold">${percentage}%</span>`;
     }
     
     showDownloadComplete() {
         document.getElementById('download-status').classList.add('d-none');
         document.getElementById('download-complete').classList.remove('d-none');
+        document.getElementById('download-complete').classList.add('bounce-in');
         
         // Set download link
         const downloadLink = document.getElementById('download-link');
