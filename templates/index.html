@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <!-- Header Section -->
+    <div class="row justify-content-center mb-5">
+        <div class="col-lg-8 text-center">
+            <h1 class="display-5 fw-bold mb-3">YouTube Video Downloader</h1>
+            <p class="lead text-muted">Download YouTube videos in various qualities including audio-only format</p>
+        </div>
+    </div>
+
+    <!-- URL Input Section -->
+    <div class="row justify-content-center mb-4">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">
+                        <i data-feather="link" class="me-2"></i>
+                        Enter YouTube URL
+                    </h5>
+                    
+                    <div class="input-group">
+                        <input type="url" 
+                               id="youtube-url" 
+                               class="form-control" 
+                               placeholder="https://www.youtube.com/watch?v=..."
+                               autocomplete="off">
+                        <button class="btn btn-secondary" 
+                                type="button" 
+                                id="get-info-btn">
+                            <i data-feather="search" class="me-1"></i>
+                            Get Video Info
+                        </button>
+                    </div>
+                    
+                    <!-- Error Alert -->
+                    <div id="error-alert" class="alert alert-danger mt-3 d-none" role="alert">
+                        <i data-feather="alert-circle" class="me-2"></i>
+                        <span id="error-message"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loading-spinner" class="row justify-content-center d-none">
+        <div class="col-auto">
+            <div class="d-flex align-items-center">
+                <div class="spinner-border spinner-border-sm me-2" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <span>Loading video information...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Video Information Section -->
+    <div id="video-info" class="row justify-content-center d-none">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row">
+                        <!-- Video Thumbnail -->
+                        <div class="col-md-4 mb-3 mb-md-0">
+                            <img id="video-thumbnail" 
+                                 src="" 
+                                 alt="Video thumbnail" 
+                                 class="img-fluid rounded">
+                        </div>
+                        
+                        <!-- Video Details -->
+                        <div class="col-md-8">
+                            <h5 id="video-title" class="card-title mb-3"></h5>
+                            
+                            <div class="row g-3 mb-3">
+                                <div class="col-sm-6">
+                                    <small class="text-muted">Author</small>
+                                    <div id="video-author" class="fw-medium"></div>
+                                </div>
+                                <div class="col-sm-6">
+                                    <small class="text-muted">Duration</small>
+                                    <div id="video-duration" class="fw-medium"></div>
+                                </div>
+                                <div class="col-sm-6">
+                                    <small class="text-muted">Views</small>
+                                    <div id="video-views" class="fw-medium"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quality Selection Section -->
+    <div id="quality-selection" class="row justify-content-center mt-4 d-none">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">
+                        <i data-feather="settings" class="me-2"></i>
+                        Select Download Quality
+                    </h5>
+                    
+                    <div id="quality-options" class="row g-3">
+                        <!-- Quality options will be populated here -->
+                    </div>
+                    
+                    <div class="mt-3">
+                        <button id="download-btn" 
+                                class="btn btn-success disabled" 
+                                disabled>
+                            <i data-feather="download" class="me-2"></i>
+                            Download Video
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Download Progress Section -->
+    <div id="download-progress" class="row justify-content-center mt-4 d-none">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-3">
+                        <i data-feather="download-cloud" class="me-2"></i>
+                        Download Progress
+                    </h5>
+                    
+                    <div class="progress mb-3" style="height: 20px;">
+                        <div id="progress-bar" 
+                             class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" 
+                             style="width: 0%" 
+                             aria-valuenow="0" 
+                             aria-valuemin="0" 
+                             aria-valuemax="100">
+                            0%
+                        </div>
+                    </div>
+                    
+                    <div id="download-status" class="d-flex align-items-center">
+                        <div class="spinner-border spinner-border-sm me-2" role="status">
+                            <span class="visually-hidden">Downloading...</span>
+                        </div>
+                        <span>Initializing download...</span>
+                    </div>
+                    
+                    <!-- Download Complete -->
+                    <div id="download-complete" class="d-none">
+                        <div class="alert alert-success" role="alert">
+                            <i data-feather="check-circle" class="me-2"></i>
+                            Download completed successfully!
+                        </div>
+                        <a id="download-link" href="#" class="btn btn-success">
+                            <i data-feather="download" class="me-2"></i>
+                            Download File
+                        </a>
+                        <button id="new-download-btn" class="btn btn-secondary ms-2">
+                            <i data-feather="plus" class="me-2"></i>
+                            Download Another Video
+                        </button>
+                    </div>
+                    
+                    <!-- Download Error -->
+                    <div id="download-error" class="d-none">
+                        <div class="alert alert-danger" role="alert">
+                            <i data-feather="x-circle" class="me-2"></i>
+                            <span id="download-error-message">Download failed</span>
+                        </div>
+                        <button id="retry-download-btn" class="btn btn-outline-danger">
+                            <i data-feather="refresh-cw" class="me-2"></i>
+                            Try Again
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
