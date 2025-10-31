@@ -46,4 +46,4 @@ localPort = 5000
 externalPort = 80
 
 [agent]
-integrations = ["python_database==1.0.0"]
+integrations = ["web_scraper==1.0.0", "python_database==1.0.0"]

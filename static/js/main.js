@@ -3,6 +3,7 @@
 class YouTubeDownloader {
     constructor() {
         this.selectedQuality = null;
+        this.selectedPlatform = null;
         this.currentUrl = null;
         this.downloadId = null;
         this.progressInterval = null;
@@ -130,8 +131,15 @@ class YouTubeDownloader {
         
         const card = document.createElement('div');
         card.className = 'card quality-option h-100';
-        card.dataset.itag = option.itag;
+        
+        // Set appropriate identifier based on platform
+        if (option.platform === 'youtube') {
+            card.dataset.itag = option.itag;
+        } else {
+            card.dataset.formatId = option.format_id;
+        }
         card.dataset.quality = option.quality;
+        card.dataset.platform = option.platform;
         
         // Determine icon and badge based on type
         let typeIcon, typeBadge, badgeColor;
@@ -150,12 +158,17 @@ class YouTubeDownloader {
             badgeColor = 'bg-success';
         }
         
+        // Add platform badge
+        const platformBadge = option.platform ? 
+            `<span class="badge bg-secondary mb-2">${option.platform.charAt(0).toUpperCase() + option.platform.slice(1)}</span>` : '';
+        
         // Add additional info for adaptive streams
         const adaptiveInfo = option.type === 'video_adaptive' ? 
             '<small class="text-warning d-block mt-1">Video only (no audio)</small>' : '';
         
         card.innerHTML = `
             <div class="card-body text-center">
+                ${platformBadge}
                 <i data-feather="${typeIcon}" class="mb-2"></i>
                 <h6 class="card-title">${option.quality}</h6>
                 <span class="badge ${badgeColor} quality-badge">${typeBadge}</span>
@@ -165,14 +178,15 @@ class YouTubeDownloader {
         `;
         
         card.addEventListener('click', () => {
-            this.selectQuality(option.itag, card);
+            const identifier = option.platform === 'youtube' ? option.itag : option.format_id;
+            this.selectQuality(identifier, card, option.platform);
         });
         
         col.appendChild(card);
         return col;
     }
     
-    selectQuality(itag, cardElement) {
+    selectQuality(identifier, cardElement, platform) {
         // Remove selection from all options
         document.querySelectorAll('.quality-option').forEach(option => {
             option.classList.remove('selected');
@@ -180,7 +194,8 @@ class YouTubeDownloader {
         
         // Select current option
         cardElement.classList.add('selected');
-        this.selectedQuality = itag;
+        this.selectedQuality = identifier;
+        this.selectedPlatform = platform;
         
         // Enable download button
         const downloadBtn = document.getElementById('download-btn');
@@ -202,15 +217,23 @@ class YouTubeDownloader {
         this.resetDownloadProgress();
         
         try {
+            // Build request body based on platform
+            const requestBody = {
+                url: this.currentUrl
+            };
+            
+            if (this.selectedPlatform === 'youtube') {
+                requestBody.itag = this.selectedQuality;
+            } else {
+                requestBody.format_id = this.selectedQuality;
+            }
+            
             const response = await fetch('/download', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    url: this.currentUrl,
-                    itag: this.selectedQuality
-                })
+                body: JSON.stringify(requestBody)
             });
             
             const data = await response.json();
@@ -352,6 +375,7 @@ class YouTubeDownloader {
         
         // Reset variables
         this.selectedQuality = null;
+        this.selectedPlatform = null;
         this.currentUrl = null;
         this.downloadId = null;
         

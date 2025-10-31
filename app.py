@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 import re
 import json
 from datetime import datetime, date
+import yt_dlp
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -44,6 +45,17 @@ db.init_app(app)
 # Global variable to store download progress
 download_progress = {}
 
+def detect_platform(url):
+    """Detect which platform the URL belongs to"""
+    if is_valid_youtube_url(url):
+        return 'youtube'
+    elif is_valid_instagram_url(url):
+        return 'instagram'
+    elif is_valid_facebook_url(url):
+        return 'facebook'
+    else:
+        return None
+
 def is_valid_youtube_url(url):
     """Validate if the URL is a valid YouTube URL"""
     youtube_regex = re.compile(
@@ -51,6 +63,26 @@ def is_valid_youtube_url(url):
         r'(watch\?v=|embed/|v/|.+\?v=)?([^&=%\?]{11})'
     )
     return youtube_regex.match(url) is not None
+
+def is_valid_instagram_url(url):
+    """Validate if the URL is a valid Instagram URL"""
+    instagram_patterns = [
+        r'(https?://)?(www\.)?instagram\.com/p/[A-Za-z0-9_-]+',  # Posts
+        r'(https?://)?(www\.)?instagram\.com/reel/[A-Za-z0-9_-]+',  # Reels
+        r'(https?://)?(www\.)?instagram\.com/tv/[A-Za-z0-9_-]+',  # IGTV
+        r'(https?://)?(www\.)?instagram\.com/stories/[A-Za-z0-9_.]+/[0-9]+',  # Stories
+    ]
+    return any(re.match(pattern, url) for pattern in instagram_patterns)
+
+def is_valid_facebook_url(url):
+    """Validate if the URL is a valid Facebook video URL"""
+    facebook_patterns = [
+        r'(https?://)?(www\.)?facebook\.com/.+/videos/[0-9]+',
+        r'(https?://)?(www\.)?facebook\.com/watch/\?v=[0-9]+',
+        r'(https?://)?(www\.)?facebook\.com/[^/]+/videos/[0-9]+',
+        r'(https?://)?(www\.)?fb\.watch/[A-Za-z0-9_-]+',
+    ]
+    return any(re.match(pattern, url) for pattern in facebook_patterns)
 
 def extract_video_id(url):
     """Extract YouTube video ID from URL"""
@@ -67,13 +99,102 @@ def extract_video_id(url):
             return match.group(1)
     return None
 
+def get_social_media_info(url):
+    """Get video information from Instagram/Facebook URL using yt-dlp"""
+    try:
+        platform = detect_platform(url)
+        if not platform:
+            return None, "Unsupported URL format"
+        
+        # Configure yt-dlp options
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': False,
+            'writeinfojson': False,
+        }
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            try:
+                # Extract video information
+                info = ydl.extract_info(url, download=False)
+                
+                # Get available formats
+                formats = info.get('formats', [])
+                quality_options = []
+                
+                # Process video formats
+                video_formats = [f for f in formats if f.get('vcodec') != 'none']
+                audio_formats = [f for f in formats if f.get('acodec') != 'none' and f.get('vcodec') == 'none']
+                
+                # Add video qualities
+                seen_heights = set()
+                for fmt in video_formats:
+                    height = fmt.get('height')
+                    if height and height not in seen_heights:
+                        quality_label = f"{height}p"
+                        if fmt.get('fps'):
+                            quality_label += f" ({fmt['fps']}fps)"
+                        
+                        quality_options.append({
+                            'format_id': fmt['format_id'],
+                            'quality': quality_label,
+                            'type': 'video',
+                            'filesize': fmt.get('filesize', 0) or 0,
+                            'platform': platform
+                        })
+                        seen_heights.add(height)
+                
+                # Add audio-only option if available
+                if audio_formats:
+                    best_audio = max(audio_formats, key=lambda x: x.get('abr', 0) or 0)
+                    quality_options.append({
+                        'format_id': best_audio['format_id'],
+                        'quality': 'Audio Only',
+                        'type': 'audio',
+                        'filesize': best_audio.get('filesize', 0) or 0,
+                        'platform': platform
+                    })
+                
+                # Sort by quality (highest first)
+                quality_options.sort(key=lambda x: int(x['quality'].split('p')[0]) if 'p' in x['quality'] else 0, reverse=True)
+                
+                video_info = {
+                    'title': info.get('title', 'Unknown Title'),
+                    'length': info.get('duration', 0),
+                    'views': info.get('view_count', 0),
+                    'thumbnail_url': info.get('thumbnail', ''),
+                    'author': info.get('uploader', 'Unknown'),
+                    'quality_options': quality_options,
+                    'platform': platform
+                }
+                
+                return video_info, None
+                
+            except Exception as extract_error:
+                logging.error(f"yt-dlp extraction error for {url}: {str(extract_error)}")
+                return None, f"Could not extract video information: {str(extract_error)}"
+                
+    except Exception as e:
+        logging.error(f"Error processing {url}: {str(e)}")
+        return None, f"Error processing video: {str(e)}"
+
 def get_video_info(url):
     """Get video information from YouTube URL with database caching"""
     try:
-        # Extract video ID for caching
-        video_id = extract_video_id(url)
-        if not video_id:
-            return None, "Invalid YouTube URL"
+        # Check platform first
+        platform = detect_platform(url)
+        
+        if platform == 'youtube':
+            # Use existing YouTube logic
+            video_id = extract_video_id(url)
+            if not video_id:
+                return None, "Invalid YouTube URL"
+        elif platform in ['instagram', 'facebook']:
+            # Use yt-dlp for Instagram/Facebook
+            return get_social_media_info(url)
+        else:
+            return None, "Unsupported platform"
         
         # Check if we have cached info for this video
         from models import VideoInfo
@@ -236,15 +357,17 @@ def stats():
 
 @app.route('/get_video_info', methods=['POST'])
 def get_video_info_route():
-    """Get video information from YouTube URL"""
+    """Get video information from YouTube, Instagram, or Facebook URL"""
     data = request.get_json()
     url = data.get('url', '').strip()
     
     if not url:
-        return jsonify({'error': 'Please enter a YouTube URL'}), 400
+        return jsonify({'error': 'Please enter a video URL'}), 400
     
-    if not is_valid_youtube_url(url):
-        return jsonify({'error': 'Please enter a valid YouTube URL'}), 400
+    # Detect platform
+    platform = detect_platform(url)
+    if not platform:
+        return jsonify({'error': 'Please enter a valid YouTube, Instagram, or Facebook URL'}), 400
     
     video_info, error = get_video_info(url)
     
@@ -252,24 +375,99 @@ def get_video_info_route():
         return jsonify({'error': f'Error loading video: {error}'}), 400
     
     # Format the data for display
+    if platform == 'youtube':
+        # YouTube uses itag
+        quality_options = [
+            {
+                'itag': option['itag'],
+                'quality': option['quality'],
+                'type': option['type'],
+                'filesize': format_filesize(option['filesize']),
+                'platform': 'youtube'
+            }
+            for option in video_info['quality_options']
+        ]
+    else:
+        # Instagram/Facebook use format_id
+        quality_options = [
+            {
+                'format_id': option['format_id'],
+                'quality': option['quality'],
+                'type': option['type'],
+                'filesize': format_filesize(option['filesize']),
+                'platform': option['platform']
+            }
+            for option in video_info['quality_options']
+        ]
+    
     formatted_info = {
         'title': video_info['title'],
         'duration': format_duration(video_info['length']),
         'views': f"{video_info['views']:,}" if video_info['views'] else "Unknown",
         'thumbnail_url': video_info['thumbnail_url'],
         'author': video_info['author'],
-        'quality_options': [
-            {
-                'itag': option['itag'],
-                'quality': option['quality'],
-                'type': option['type'],
-                'filesize': format_filesize(option['filesize'])
-            }
-            for option in video_info['quality_options']
-        ]
+        'quality_options': quality_options,
+        'platform': platform
     }
     
     return jsonify(formatted_info)
+
+def download_social_media_video(url, format_id, download_id):
+    """Download video from Instagram/Facebook using yt-dlp"""
+    try:
+        temp_dir = tempfile.mkdtemp()
+        output_template = os.path.join(temp_dir, '%(title)s.%(ext)s')
+        
+        # Configure yt-dlp options
+        ydl_opts = {
+            'format': format_id,
+            'outtmpl': output_template,
+            'quiet': True,
+            'no_warnings': True,
+        }
+        
+        # Add progress hook
+        def progress_hook(d):
+            if d['status'] == 'downloading':
+                try:
+                    if d.get('total_bytes'):
+                        downloaded = d.get('downloaded_bytes', 0)
+                        percent = int((downloaded / d['total_bytes']) * 100)
+                        download_progress[download_id]['progress'] = percent
+                        download_progress[download_id]['status'] = 'downloading'
+                    elif d.get('_percent_str'):
+                        # Parse percentage from string if available
+                        percent_str = d['_percent_str'].strip(' %')
+                        try:
+                            percent = int(float(percent_str))
+                            download_progress[download_id]['progress'] = percent
+                        except:
+                            pass
+                except Exception as e:
+                    logging.warning(f"Progress tracking error: {e}")
+            
+            elif d['status'] == 'finished':
+                download_progress[download_id]['progress'] = 100
+                download_progress[download_id]['status'] = 'finished'
+                download_progress[download_id]['filename'] = d['filename']
+        
+        ydl_opts['progress_hooks'] = [progress_hook]
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            download_progress[download_id]['status'] = 'downloading'
+            ydl.download([url])
+            
+        # Find the downloaded file
+        files = os.listdir(temp_dir)
+        if files:
+            downloaded_file = os.path.join(temp_dir, files[0])
+            return downloaded_file, None
+        else:
+            return None, "No file was downloaded"
+            
+    except Exception as e:
+        logging.error(f"yt-dlp download error: {str(e)}")
+        return None, str(e)
 
 @app.route('/download', methods=['POST'])
 def download_video():
@@ -277,12 +475,15 @@ def download_video():
     data = request.get_json()
     url = data.get('url', '').strip()
     itag = data.get('itag')
+    format_id = data.get('format_id')
     
-    if not url or not itag:
+    if not url or (not itag and not format_id):
         return jsonify({'error': 'Missing URL or quality selection'}), 400
     
-    if not is_valid_youtube_url(url):
-        return jsonify({'error': 'Invalid YouTube URL'}), 400
+    # Detect platform
+    platform = detect_platform(url)
+    if not platform:
+        return jsonify({'error': 'Invalid video URL'}), 400
     
     try:
         # Get user information
@@ -300,91 +501,142 @@ def download_video():
             try:
                 from models import DownloadHistory, PopularVideo, DownloadStats
                 
-                # Initialize YouTube object with better error handling
-                try:
-                    yt = YouTube(url, use_oauth=False, allow_oauth_cache=True)
-                except Exception as yt_error:
-                    download_progress[download_id]['status'] = 'error'
-                    download_progress[download_id]['error'] = f'YouTube access error: {str(yt_error)}'
-                    logging.error(f"YouTube initialization error: {str(yt_error)}")
-                    return
-                
-                stream = yt.streams.get_by_itag(itag)
-                
-                if not stream:
-                    download_progress[download_id]['status'] = 'error'
-                    download_progress[download_id]['error'] = 'Selected quality not available'
-                    return
-                
-                # Check if this is an adaptive stream (video-only)
-                is_adaptive = hasattr(stream, 'adaptive') and stream.adaptive and hasattr(stream, 'includes_video_track') and stream.includes_video_track and not getattr(stream, 'includes_audio_track', True)
-                
-                # For adaptive streams, we'll download video-only for now
-                # In the future, we can add FFmpeg integration for merging
-                
-                # Create download record
-                video_id = extract_video_id(url)
-                quality = stream.resolution or 'Audio Only'
-                download_type = 'video' if stream.resolution else 'audio'
-                
-                download_record = DownloadHistory(
-                    video_title=yt.title,
-                    video_url=url,
-                    video_id=video_id,
-                    author=yt.author,
-                    duration=yt.length,
-                    views=yt.views,
-                    thumbnail_url=yt.thumbnail_url,
-                    quality=quality,
-                    download_type=download_type,
-                    file_size=stream.filesize,
-                    itag=itag,
-                    user_ip=user_ip,
-                    user_agent=user_agent,
-                    session_id=session_id,
-                    download_started_at=datetime.utcnow(),
-                    status='downloading'
-                )
+                if platform == 'youtube':
+                    # YouTube download logic
+                    try:
+                        yt = YouTube(url, use_oauth=False, allow_oauth_cache=True)
+                    except Exception as yt_error:
+                        download_progress[download_id]['status'] = 'error'
+                        download_progress[download_id]['error'] = f'YouTube access error: {str(yt_error)}'
+                        logging.error(f"YouTube initialization error: {str(yt_error)}")
+                        return
+                    
+                    stream = yt.streams.get_by_itag(itag)
+                    
+                    if not stream:
+                        download_progress[download_id]['status'] = 'error'
+                        download_progress[download_id]['error'] = 'Selected quality not available'
+                        return
+                    
+                    # Create download record for YouTube
+                    video_id = extract_video_id(url)
+                    quality = stream.resolution or 'Audio Only'
+                    download_type = 'video' if stream.resolution else 'audio'
+                    
+                    download_record = DownloadHistory(
+                        video_title=yt.title,
+                        video_url=url,
+                        video_id=video_id,
+                        author=yt.author,
+                        duration=yt.length,
+                        views=yt.views,
+                        thumbnail_url=yt.thumbnail_url,
+                        quality=quality,
+                        download_type=download_type,
+                        file_size=stream.filesize,
+                        itag=itag,
+                        user_ip=user_ip,
+                        user_agent=user_agent,
+                        session_id=session_id,
+                        platform=platform
+                    )
+                    
+                else:
+                    # Instagram/Facebook download logic
+                    video_info, error = get_social_media_info(url)
+                    if error:
+                        download_progress[download_id]['status'] = 'error'
+                        download_progress[download_id]['error'] = error
+                        return
+                    
+                    # Find the selected format
+                    selected_format = None
+                    for option in video_info['quality_options']:
+                        if option['format_id'] == format_id:
+                            selected_format = option
+                            break
+                    
+                    if not selected_format:
+                        download_progress[download_id]['status'] = 'error'
+                        download_progress[download_id]['error'] = 'Selected quality not available'
+                        return
+                    
+                    # Create download record for social media
+                    download_record = DownloadHistory(
+                        video_title=video_info['title'],
+                        video_url=url,
+                        video_id=url.split('/')[-1] if '/' in url else url,  # Use part of URL as ID
+                        author=video_info['author'],
+                        duration=video_info['length'],
+                        views=video_info['views'],
+                        thumbnail_url=video_info['thumbnail_url'],
+                        quality=selected_format['quality'],
+                        download_type=selected_format['type'],
+                        file_size=selected_format['filesize'],
+                        itag=format_id,  # Use format_id in place of itag
+                        user_ip=user_ip,
+                        user_agent=user_agent,
+                        session_id=session_id,
+                        platform=platform,
+                        download_started_at=datetime.utcnow(),
+                        status='downloading'
+                    )
                 db.session.add(download_record)
                 db.session.commit()
                 
-                # Create temporary file
-                temp_dir = tempfile.gettempdir()
-                filename = f"{yt.title}_{stream.resolution or 'audio'}.{stream.subtype}"
-                # Clean filename
-                filename = re.sub(r'[<>:"/\\|?*]', '', filename)
-                filepath = os.path.join(temp_dir, filename)
-                
-                download_progress[download_id]['status'] = 'downloading'
-                download_progress[download_id]['filename'] = filename
                 download_progress[download_id]['record_id'] = download_record.id
                 
-                # Download with progress callback
-                def progress_callback(stream, chunk, bytes_remaining):
-                    total_size = stream.filesize
-                    bytes_downloaded = total_size - bytes_remaining
-                    progress = int((bytes_downloaded / total_size) * 100)
-                    download_progress[download_id]['progress'] = progress
-                
-                yt.register_on_progress_callback(progress_callback)
-                stream.download(output_path=temp_dir, filename=filename)
+                # Handle download based on platform
+                if platform == 'youtube':
+                    # YouTube download logic
+                    temp_dir = tempfile.gettempdir()
+                    filename = f"{yt.title}_{stream.resolution or 'audio'}.{stream.subtype}"
+                    filename = re.sub(r'[<>:"/\\|?*]', '', filename)
+                    filepath = os.path.join(temp_dir, filename)
+                    
+                    download_progress[download_id]['status'] = 'downloading'
+                    download_progress[download_id]['filename'] = filename
+                    
+                    # Download with progress callback
+                    def progress_callback(stream, chunk, bytes_remaining):
+                        total_size = stream.filesize
+                        bytes_downloaded = total_size - bytes_remaining
+                        progress = int((bytes_downloaded / total_size) * 100)
+                        download_progress[download_id]['progress'] = progress
+                    
+                    yt.register_on_progress_callback(progress_callback)
+                    stream.download(output_path=temp_dir, filename=filename)
+                    download_progress[download_id]['filepath'] = filepath
+                    
+                    # Update popular videos tracking
+                    video_id = extract_video_id(url)
+                    popular_video = PopularVideo.query.filter_by(video_id=video_id).first()
+                    if popular_video:
+                        popular_video.increment_downloads()
+                    else:
+                        new_popular = PopularVideo(
+                            video_id=video_id,
+                            video_title=yt.title,
+                            author=yt.author,
+                            thumbnail_url=yt.thumbnail_url
+                        )
+                        db.session.add(new_popular)
+                        
+                else:
+                    # Instagram/Facebook download using yt-dlp
+                    filepath, error = download_social_media_video(url, format_id, download_id)
+                    if error:
+                        download_progress[download_id]['status'] = 'error'
+                        download_progress[download_id]['error'] = error
+                        return
+                    
+                    download_progress[download_id]['filepath'] = filepath
+                    filename = os.path.basename(filepath)
+                    download_progress[download_id]['filename'] = filename
                 
                 # Update download record as completed
                 download_record.status = 'completed'
                 download_record.download_completed_at = datetime.utcnow()
-                
-                # Update popular videos tracking
-                popular_video = PopularVideo.query.filter_by(video_id=video_id).first()
-                if popular_video:
-                    popular_video.increment_downloads()
-                else:
-                    new_popular = PopularVideo(
-                        video_id=video_id,
-                        video_title=yt.title,
-                        author=yt.author,
-                        thumbnail_url=yt.thumbnail_url
-                    )
-                    db.session.add(new_popular)
                 
                 # Update daily stats
                 today = date.today()
@@ -394,20 +646,19 @@ def download_video():
                     db.session.add(daily_stats)
                 
                 daily_stats.total_downloads += 1
-                if download_type == 'video':
+                if download_record.download_type == 'video':
                     daily_stats.video_downloads += 1
                 else:
                     daily_stats.audio_downloads += 1
                 
-                daily_stats.total_bytes_downloaded += (stream.filesize or 0)
+                daily_stats.total_bytes_downloaded += (download_record.file_size or 0)
                 
                 db.session.commit()
                 
                 download_progress[download_id]['status'] = 'completed'
-                download_progress[download_id]['filepath'] = filepath
                 download_progress[download_id]['progress'] = 100
                 
-                logging.info(f"Download completed: {yt.title} - {quality}")
+                logging.info(f"Download completed: {download_record.video_title} - {download_record.quality}")
                 
             except Exception as e:
                 logging.error(f"Download error: {str(e)}")
@@ -574,8 +825,12 @@ def get_download_history():
 with app.app_context():
     # Import models to ensure they are registered with SQLAlchemy
     import models
-    db.create_all()
-    logging.info("Database tables created successfully")
+    try:
+        db.create_all()
+        logging.info("Database tables created successfully")
+    except Exception as e:
+        logging.error(f"Database initialization error: {e}")
+        logging.warning("Application will continue without database functionality")
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

@@ -22,7 +22,8 @@ class DownloadHistory(db.Model):
     quality = db.Column(db.String(50), nullable=False)  # e.g., "720p", "Audio Only"
     download_type = db.Column(db.String(20), nullable=False)  # "video" or "audio"
     file_size = db.Column(db.BigInteger)  # File size in bytes
-    itag = db.Column(db.String(10))  # YouTube stream itag
+    itag = db.Column(db.String(20))  # YouTube stream itag or social media format_id
+    platform = db.Column(db.String(20), default='youtube')  # youtube, instagram, facebook
     
     # User and session info
     user_ip = db.Column(db.String(45))  # IPv4 or IPv6
