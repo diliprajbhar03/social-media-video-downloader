@@ -84,6 +84,23 @@ def is_valid_facebook_url(url):
     ]
     return any(re.match(pattern, url) for pattern in facebook_patterns)
 
+def is_valid_twitter_url(url):
+    """Validate if the URL is a valid Twitter/X URL"""
+    twitter_patterns = [
+        r'(https?://)?(www\.)?(twitter|x)\.com/[^/]+/status/[0-9]+',
+        r'(https?://)?mobile\.(twitter|x)\.com/[^/]+/status/[0-9]+',
+    ]
+    return any(re.match(pattern, url) for pattern in twitter_patterns)
+
+def is_valid_snapchat_url(url):
+    """Validate if the URL is a valid Snapchat URL"""
+    snapchat_patterns = [
+        r'(https?://)?(www\.)?snapchat\.com/spotlight/[A-Za-z0-9_-]+',
+        r'(https?://)?story\.snapchat\.com/[A-Za-z0-9_-]+',
+        r'(https?://)?t\.snapchat\.com/[A-Za-z0-9_-]+',
+    ]
+    return any(re.match(pattern, url) for pattern in snapchat_patterns)
+
 def extract_video_id(url):
     """Extract YouTube video ID from URL"""
     patterns = [
