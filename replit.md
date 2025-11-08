@@ -1,8 +1,8 @@
-# YouTube Downloader Application
+# Social Media Video Downloader Application
 
 ## Overview
 
-This is a Flask-based web application that allows users to download YouTube videos in various qualities, including audio-only format. The application provides a user-friendly interface for entering YouTube URLs, viewing video information, selecting download quality, and monitoring download progress.
+This is a Flask-based web application that allows users to download videos from multiple social media platforms (YouTube, Instagram, Facebook, Twitter, and Snapchat) in various qualities, including audio-only format. The application provides a user-friendly interface for entering video URLs, viewing video information, selecting download quality, and monitoring download progress.
 
 ## User Preferences
 
@@ -25,7 +25,10 @@ The application follows a traditional client-server architecture with a Flask ba
 - **Main Application** (`app.py`): Contains all route handlers and business logic with database integration
 - **Database Models** (`models.py`): SQLAlchemy models for tracking downloads, statistics, and caching
 - **Entry Point** (`main.py`): Simple server startup script
-- **Video Processing**: Uses PyTube library for YouTube URL validation and video stream extraction
+- **Video Processing**: 
+  - YouTube: pytubefix library for URL validation and video stream extraction
+  - Instagram, Facebook, Twitter, Snapchat: yt-dlp library for multi-platform video downloads
+  - Platform Detection: Automatic detection of video platform from URL
 - **Progress Tracking**: Global dictionary to store download progress for real-time updates
 - **File Handling**: Temporary file management for downloads
 - **Data Persistence**: PostgreSQL database for download history, video caching, and statistics
@@ -37,7 +40,9 @@ The application follows a traditional client-server architecture with a Flask ba
 - **JavaScript** (`static/js/main.js`): Client-side logic for API interactions and UI updates
 
 ### Key Features:
-- YouTube URL validation using regex patterns
+- Multi-platform support (YouTube, Instagram, Facebook, Twitter, Snapchat)
+- Automatic platform detection from URL
+- URL validation using platform-specific regex patterns
 - Video quality selection (multiple resolutions and audio-only)
 - Real-time download progress tracking
 - Responsive design with dark theme
@@ -63,8 +68,10 @@ The application follows a traditional client-server architecture with a Flask ba
 
 ### Python Libraries:
 - **Flask**: Web framework for HTTP handling and template rendering
-- **PyTube**: YouTube video downloading and stream extraction
-- **Standard Libraries**: os, logging, tempfile, threading, time, urllib, re
+- **pytubefix**: YouTube video downloading and stream extraction
+- **yt-dlp**: Multi-platform video downloader for Instagram, Facebook, Twitter, and Snapchat
+- **SQLAlchemy**: Database ORM for PostgreSQL integration
+- **Standard Libraries**: os, logging, tempfile, threading, time, urllib, re, json, datetime
 
 ### Frontend Dependencies:
 - **Bootstrap 5**: UI framework with dark theme from Replit CDN
