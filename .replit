@@ -49,9 +49,5 @@ externalPort = 80
 localPort = 34745
 externalPort = 3000
 
-[[ports]]
-localPort = 42857
-externalPort = 3001
-
 [agent]
 integrations = ["web_scraper==1.0.0", "python_database==1.0.0"]
