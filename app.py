@@ -93,6 +93,7 @@ def is_valid_twitter_url(url):
     twitter_patterns = [
         r'(https?://)?(www\.)?(twitter|x)\.com/[^/]+/status/[0-9]+',
         r'(https?://)?mobile\.(twitter|x)\.com/[^/]+/status/[0-9]+',
+        r'(https?://)?(www\.)?(twitter|x)\.com/.+/status/[0-9]+',
     ]
     return any(re.match(pattern, url) for pattern in twitter_patterns)
 
@@ -211,8 +212,8 @@ def get_video_info(url):
             video_id = extract_video_id(url)
             if not video_id:
                 return None, "Invalid YouTube URL"
-        elif platform in ['instagram', 'facebook']:
-            # Use yt-dlp for Instagram/Facebook
+        elif platform in ['instagram', 'facebook', 'twitter', 'snapchat']:
+            # Use yt-dlp for social media platforms
             return get_social_media_info(url)
         else:
             return None, "Unsupported platform"
@@ -378,7 +379,7 @@ def stats():
 
 @app.route('/get_video_info', methods=['POST'])
 def get_video_info_route():
-    """Get video information from YouTube, Instagram, or Facebook URL"""
+    """Get video information from supported social media platforms"""
     data = request.get_json()
     url = data.get('url', '').strip()
     
@@ -388,7 +389,7 @@ def get_video_info_route():
     # Detect platform
     platform = detect_platform(url)
     if not platform:
-        return jsonify({'error': 'Please enter a valid YouTube, Instagram, or Facebook URL'}), 400
+        return jsonify({'error': 'Please enter a valid video URL from YouTube, Instagram, Facebook, Twitter, or Snapchat'}), 400
     
     video_info, error = get_video_info(url)
     
@@ -434,7 +435,7 @@ def get_video_info_route():
     return jsonify(formatted_info)
 
 def download_social_media_video(url, format_id, download_id):
-    """Download video from Instagram/Facebook using yt-dlp"""
+    """Download video from social media platforms (Instagram, Facebook, Twitter, Snapchat) using yt-dlp"""
     try:
         temp_dir = tempfile.mkdtemp()
         output_template = os.path.join(temp_dir, '%(title)s.%(ext)s')
