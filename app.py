@@ -53,6 +53,10 @@ def detect_platform(url):
         return 'instagram'
     elif is_valid_facebook_url(url):
         return 'facebook'
+    elif is_valid_twitter_url(url):
+        return 'twitter'
+    elif is_valid_snapchat_url(url):
+        return 'snapchat'
     else:
         return None
 
